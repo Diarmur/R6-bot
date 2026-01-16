@@ -1,7 +1,9 @@
+import './logger'; 
 import fs from 'fs';
 import path from 'path';
 import { client } from './client';
 import 'dotenv/config';
+import './cron/updateRoles';
 
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.ts') || f.endsWith('.js'));
