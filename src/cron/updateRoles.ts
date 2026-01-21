@@ -14,7 +14,7 @@ client.once('clientReady', async () => {
   await runCron();
 
   // Then schedule every 2 hours
-  setInterval(runCron, 2 * 60 * 60 * 1000); // 2 hours in ms
+  setInterval(runCron, 12 * 60 * 60 * 1000); // 2 hours in ms
 });
 
 async function runCron() {
