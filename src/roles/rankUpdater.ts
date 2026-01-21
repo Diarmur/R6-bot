@@ -12,15 +12,29 @@ export async function updateMemberRankRole(member: GuildMember, rankId: number) 
   }
 
   // Remove all old rank roles
-  const allRoles = Object.values(rankToRoleMap)
+  try {
+    const allRoles = Object.values(rankToRoleMap)
     .map(r => member.guild.roles.cache.find(role => role.name === r))
     .filter(Boolean);
 
-  const rolesToRemove = member.roles.cache.filter(r => allRoles.includes(r));
-  if (rolesToRemove.size > 0) await member.roles.remove(rolesToRemove);
+    const rolesToRemove = member.roles.cache.filter(r => allRoles.includes(r));
+    if (rolesToRemove.size > 0) await member.roles.remove(rolesToRemove);
 
-  // Add new rank role
-  await member.roles.add(role);
+    // Add new rank role
+    await member.roles.add(role);
 
-  console.log(`Updated ${member.user.tag} to role ${role.name}`);
+    console.log(`Updated ${member.user.tag} to role ${role.name}`);
+    console.log(`[RANK UPDATE] Finished successfully`);
+  } catch (err) {
+    console.error(err);
+    await notifyError(String(err));
+  }
 }
+
+  export async function notifyError(message: string) {
+    await fetch(process.env.DISCORD_WEBHOOK!, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: `🚨 **Rank updater error**\n${message}` }),
+    });
+  }

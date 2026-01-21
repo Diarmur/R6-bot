@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import { client } from '../client'; // your bot client
 import { getAllLinkedUsers } from '../services/users'; // your service to get linked users
-import { updateMemberRankRole } from '../roles/rankUpdater';
+import { updateMemberRankRole, notifyError } from '../roles/rankUpdater';
 import { getR6DataStats } from '../providers/r6stats';
+import { rankNames } from '../utils/rankMap'
 
 const GUILD_ID = process.env.GUILD_ID;
 
@@ -18,34 +19,51 @@ client.once('clientReady', async () => {
 });
 
 async function runCron() {
-  console.log(`[${new Date().toISOString()}] Running role update cron...`);
+  try{
+    console.log(`[${new Date().toISOString()}] Running role update cron...`);
+    await fetch(process.env.DISCORD_WEBHOOK!, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: `Running role update cron...` }),
+      });
 
-  if (!GUILD_ID) {
-    console.error('❌ Missing GUILD_ID in .env');
-    process.exit(1);
+    if (!GUILD_ID) {
+      console.error('❌ Missing GUILD_ID in .env');
+      process.exit(1);
+      }
+
+    const guild = client.guilds.cache.get(GUILD_ID);
+    if (!guild) {
+      console.error('Guild not found');
+      return;
     }
 
-  const guild = client.guilds.cache.get(GUILD_ID);
-  if (!guild) {
-    console.error('Guild not found');
-    return;
-  }
+    const users = getAllLinkedUsers(); // return array of { id, username, platform }
+    for (const user of users) {
+      try {
+        const member = await guild.members.fetch(user.id).catch(() => null);
+        if (!member) continue;
 
-  const users = getAllLinkedUsers(); // return array of { id, username, platform }
-  for (const user of users) {
-    try {
-      const member = guild.members.cache.get(user.id);
-      if (!member) continue;
+        const stats = await getR6DataStats(user.platform, user.username);
 
-      const stats = await getR6DataStats(user.platform, user.username);
-
-      // Update role based on rank
-      await updateMemberRankRole(member, stats.rank);
-    } catch (err) {
-      console.error(`Failed to update rank for ${user.username}:`, err);
+        // Update role based on rank
+        await updateMemberRankRole(member, stats.rank);
+        console.log(member);
+        
+        await fetch(process.env.DISCORD_WEBHOOK!, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: `Updating ${user.username} to ${rankNames[stats.rank]}` }),
+        });
+      } catch (err) {
+        console.error(`Failed to update rank for ${user.username}:`, err);
+      }
     }
-  }
 
-  console.log(`[${new Date().toISOString()}] Role update cron finished`);
+    console.log(`[${new Date().toISOString()}] Role update cron finished`);
+  } catch (err) {
+    console.error(err);
+    await notifyError(String(err));
+  }
 }
 

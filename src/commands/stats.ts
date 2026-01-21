@@ -86,14 +86,6 @@ export const command: Command = {
         } catch (err) {
           console.warn('Failed to update rank role:', err);
         }
-
-        // Update nickname
-        try {
-          const baseName = memberToUpdate.user.username;
-          await memberToUpdate.setNickname(`${baseName} | ${rankName}`);
-        } catch {
-          // Ignore if bot lacks permission
-        }
       }
 
     } catch (error: any) {
