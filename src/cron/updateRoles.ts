@@ -1,36 +1,33 @@
 import 'dotenv/config';
-import { client } from '../client'; // your bot client
-import { getAllLinkedUsers } from '../services/users'; // your service to get linked users
+import { client } from '../client';
+import { getAllLinkedUsers } from '../services/users';
 import { updateMemberRankRole, notifyError } from '../roles/rankUpdater';
 import { getR6DataStats } from '../providers/r6stats';
-import { rankNames } from '../utils/rankMap'
+import { rankNames } from '../utils/rankMap';
+import { updateStreak } from '../services/streaks';
+import { updateStreakNickname } from '../utils/nicknameUpdater';
 
 const GUILD_ID = process.env.GUILD_ID;
 
-// Wait for the bot to be ready
 client.once('clientReady', async () => {
-  console.log('Bot ready, starting cron task for updating roles every 2 hours');
-
-  // Immediately run once
+  console.log('Bot ready, starting cron task for updating roles every 12 hours');
   await runCron();
-
-  // Then schedule every 12 hours
-  setInterval(runCron, 12 * 60 * 60 * 1000); // 12 hours in ms
+  setInterval(runCron, 12 * 60 * 60 * 1000);
 });
 
 async function runCron() {
-  try{
+  try {
     console.log(`[${new Date().toISOString()}] Running role update cron...`);
     await fetch(process.env.DISCORD_WEBHOOK!, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: `Running role update cron...` }),
-      });
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: `Running role update cron...` }),
+    });
 
     if (!GUILD_ID) {
       console.error('❌ Missing GUILD_ID in .env');
       process.exit(1);
-      }
+    }
 
     const guild = client.guilds.cache.get(GUILD_ID);
     if (!guild) {
@@ -38,7 +35,7 @@ async function runCron() {
       return;
     }
 
-    const users = getAllLinkedUsers(); // return array of { id, username, platform }
+    const users = getAllLinkedUsers();
     for (const user of users) {
       try {
         const member = await guild.members.fetch(user.id).catch(() => null);
@@ -46,13 +43,19 @@ async function runCron() {
 
         const stats = await getR6DataStats(user.platform, user.username);
 
-        // Update role based on rank
+        // Update rank role
         await updateMemberRankRole(member, stats.rank);
-        
+
+        // Update win streak and nickname
+        const streak = updateStreak(user.id, stats.totalWins, stats.totalLosses);
+        await updateStreakNickname(member, streak);
+
         await fetch(process.env.DISCORD_WEBHOOK!, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: `Updating ${user.username} to ${rankNames[stats.rank]}` }),
+          body: JSON.stringify({
+            content: `Updated ${user.username} → ${rankNames[stats.rank]} | streak: ${streak > 0 ? `🔥${streak}` : 'none'}`,
+          }),
         });
       } catch (err) {
         console.error(`Failed to update rank for ${user.username}:`, err);
@@ -65,4 +68,3 @@ async function runCron() {
     await notifyError(String(err));
   }
 }
-

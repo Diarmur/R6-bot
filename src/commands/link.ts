@@ -28,10 +28,6 @@ export const command: Command = {
       const username = interaction.options.getString('username', true);
       const platform = interaction.options.getString('platform', true);
 
-      // Optional: validate the username/platform by fetching stats
-      // You could call getR6DataStats here to confirm the account exists
-      // const stats = await getR6DataStats(platform, username);
-
       saveUser(interaction.user.id, { username, platform });
 
       await interaction.reply({
