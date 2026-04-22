@@ -19,7 +19,7 @@ async function getOrFetch<T>(
   const cached = cache.get(key);
 
   if (cached?.data && now - cached.timestamp < CACHE_TTL) {
-    return cached.data; // 🚫 NO API CALL
+    return cached.data;
   }
 
   if (cached?.promise) {
@@ -41,79 +41,71 @@ async function getOrFetch<T>(
 }
 
 export async function getR6DataStats(platform: string, username: string): Promise<R6Stats> {
-
-    const cacheKey = `r6:${platform}:${username.toLowerCase()}`;
+  const cacheKey = `r6:${platform}:${username.toLowerCase()}`;
 
   return getOrFetch(cacheKey, async () => {
     console.log('🌐 Fetching from API');
-  
-  // Map user platform to API-compatible values
-  let platformFamily: string;
-  switch (platform.toLowerCase()) {
-    case 'uplay':
-      platformFamily = 'pc';
-      break;
-    case 'xbox':
-      platformFamily = 'xbox';
-      break;
-    case 'ps4':
-      platformFamily = 'ps4';
-      break;
-    default:
-      throw new Error(`Invalid platform: ${platform}`);
-  }
 
-  const url = `https://api.r6data.eu/api/stats?type=stats&nameOnPlatform=${encodeURIComponent(
-    username
-  )}&platformType=${platform.toLowerCase()}&platform_families=${platformFamily}`;
+    let platformFamily: string;
+    switch (platform.toLowerCase()) {
+      case 'uplay':
+        platformFamily = 'pc';
+        break;
+      case 'xbox':
+        platformFamily = 'xbox';
+        break;
+      case 'ps4':
+        platformFamily = 'ps4';
+        break;
+      default:
+        throw new Error(`Invalid platform: ${platform}`);
+    }
 
-  const res = await fetch(url, {
-    headers: {
-      'api-key': process.env.R6DATA_API_KEY ?? '',
-      'User-Agent': 'Private-R6-Bot',
-    },
-  });
+    const url = `https://r6data.eu/api/stats?type=stats&nameOnPlatform=${encodeURIComponent(
+      username
+    )}&platformType=${platform.toLowerCase()}&platform_families=${platformFamily}`;
 
-  if (!res.ok) throw new Error(`Failed to fetch stats (HTTP ${res.status})`);
+    const res = await fetch(url, {
+      headers: {
+        'api-key': process.env.R6DATA_API_KEY ?? '',
+        'User-Agent': 'Private-R6-Bot',
+      },
+    });
 
-  const payload = (await res.json()) as any;
+    if (!res.ok) throw new Error(`Failed to fetch stats (HTTP ${res.status})`);
 
-  // Find platform family
-  const family = payload.platform_families_full_profiles.find(
-    (f: any) => f.platform_family === platformFamily
-  );
-  if (!family) throw new Error(`No stats for platform ${platformFamily}`);
+    const payload = (await res.json()) as any;
 
-  // Find ranked board
-  const rankedBoard = family.board_ids_full_profiles.find(
-    (b: any) => b.board_id === 'ranked'
-  );
-  if (!rankedBoard) throw new Error(`No ranked stats available`);
+    const family = payload.platform_families_full_profiles[0];
+    if (!family) throw new Error(`No stats found for ${username} on ${platform}`);
 
-  const profile = rankedBoard.full_profiles[0].profile;
-  const stats = rankedBoard.full_profiles[0].season_statistics;
-  const outcomes = stats.match_outcomes;
+    const rankedBoard = family.board_ids_full_profiles.find(
+      (b: any) => b.board_id === 'ranked'
+    );
+    if (!rankedBoard) throw new Error(`No ranked stats available`);
 
-  const kd = stats.deaths > 0 ? stats.kills / stats.deaths : 0;
-  const winRate = outcomes.losses + outcomes.wins > 0
-    ? (outcomes.wins / (outcomes.wins + outcomes.losses)) * 100
-    : 0;
+    const fullProfile = rankedBoard.full_profiles[0];
+    const profile = fullProfile.profile;
+    const stats = fullProfile.season_statistics;
+    const outcomes = stats.match_outcomes;
 
-  // Optionally, you can also parse operators from another board if available
-  const operators: Record<string, OperatorStats> = {}; // keep empty for now
+    const kd = stats.deaths > 0 ? stats.kills / stats.deaths : 0;
+    const winRate = (outcomes.wins + outcomes.losses) > 0
+      ? (outcomes.wins / (outcomes.wins + outcomes.losses)) * 100
+      : 0;
 
-  return {
-    rank: profile.rank || 0,
-    mmr: profile.rank_points || 0,
-    kd: parseFloat(kd.toFixed(2)),
-    winRate: parseFloat(winRate.toFixed(2)),
-    season: `Season ${profile.season_id}` || 'N/A',
-    totalKills: stats.kills || 0,
-    totalDeaths: stats.deaths || 0,
-    totalMatches: outcomes.wins + outcomes.losses + outcomes.abandons || 0,
-    totalWins: outcomes.wins || 0,
-    totalLosses: outcomes.losses || 0,
-    operators,
-  };
+    return {
+      rank: profile.rank ?? 0,
+      mmr: profile.rank_points ?? 0,
+      kd: parseFloat(kd.toFixed(2)),
+      winRate: parseFloat(winRate.toFixed(2)),
+      season: `Season ${fullProfile.season_id}`,
+      totalKills: stats.kills ?? 0,
+      totalDeaths: stats.deaths ?? 0,
+      totalMatches: outcomes.wins + outcomes.losses + outcomes.abandons,
+      totalWins: outcomes.wins ?? 0,
+      totalLosses: outcomes.losses ?? 0,
+      operators: {},
+    };
   });
 }

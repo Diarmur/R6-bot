@@ -12,7 +12,7 @@ for (const file of commandFiles) {
   const commandModule = require(path.join(commandsPath, file));
 
   // Debug: log what was imported
-  console.log(file, commandModule);
+  // console.log(file, commandModule);
 
   const command = commandModule.command;
   if (!command) {

@@ -48,7 +48,6 @@ async function runCron() {
 
         // Update role based on rank
         await updateMemberRankRole(member, stats.rank);
-        console.log(member);
         
         await fetch(process.env.DISCORD_WEBHOOK!, {
           method: 'POST',
